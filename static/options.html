@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Updraft settings</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body class="options">
+  <h1>Updraft settings</h1>
+  <form id="form">
+    <section>
+      <h2>Drafting</h2>
+      <label>Anthropic API key
+        <input name="apiKey" type="password" autocomplete="off" placeholder="sk-ant-...">
+      </label>
+      <p class="hint">Stored only in this browser's extension storage and sent only to api.anthropic.com. Drafting is optional; ranking works without a key.</p>
+      <label>Model
+        <input name="model" list="models">
+        <datalist id="models">
+          <option value="claude-opus-5-5"></option>
+          <option value="claude-sonnet-5-5"></option>
+          <option value="claude-haiku-5-5"></option>
+        </datalist>
+      </label>
+      <label>Effort
+        <select name="effort">
+          <option value="low">Low (fastest)</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+    </section>
+    <section>
+      <h2>Your voice</h2>
+      <label>About you
+        <textarea name="about" rows="3" placeholder="Head of Product at a fintech. I write about planning, pricing and small teams."></textarea>
+      </label>
+      <label>Samples of your writing
+        <textarea name="samples" rows="8" placeholder="Paste 3-10 of your own past comments or posts, separated by blank lines."></textarea>
+      </label>
+      <label>Style rules
+        <textarea name="rules" rows="4" placeholder="Australian spelling&#10;No emoji&#10;Short sentences"></textarea>
+      </label>
+    </section>
+    <section>
+      <h2>Consistency</h2>
+      <label>Weekly comment goal
+        <input name="weeklyGoal" type="number" min="1" max="100">
+      </label>
+    </section>
+    <button type="submit" class="primary">Save</button>
+    <span id="status" class="hint" role="status"></span>
+  </form>
+  <script src="options.js" type="module"></script>
+</body>
+</html>
