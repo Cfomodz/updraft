@@ -1,0 +1,28 @@
+{
+  "name": "updraft",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension: spot LinkedIn posts gaining momentum and draft comments in your own voice.",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "npm run build && node e2e/extension.mjs",
+    "package": "npm run build && cd dist && zip -qr ../updraft.zip . -x \"*.map\""
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.5",
+    "@types/jsdom": "^30.0.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.64.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

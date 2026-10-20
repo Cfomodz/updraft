@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Updraft</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Updraft</div>
+    <div id="progress" class="progress"></div>
+    <a id="settings" class="link" href="#">Settings</a>
+  </header>
+  <nav class="tabs">
+    <button data-tab="rising" class="tab active">Rising</button>
+    <button data-tab="all" class="tab">All seen</button>
+    <button data-tab="sponsored" class="tab">Sponsored</button>
+    <button data-tab="commented" class="tab">Commented</button>
+  </nav>
+  <div id="filters" class="filters" hidden>
+    <label class="toggle"><input type="checkbox" id="f-funded" checked> Well funded</label>
+    <label class="toggle"><input type="checkbox" id="f-names"> Names me</label>
+    <span id="f-count" class="meta"></span>
+  </div>
+  <main id="list"></main>
+  <script src="sidepanel.js" type="module"></script>
+</body>
+</html>
