@@ -6,6 +6,9 @@ export const LIMITS = {
   maxPosts: 600,
   keepUnseenMs: 3 * 86_400_000,
   keepCommentedMs: 14 * 86_400_000,
+  // Sponsored posts stay listed until commented on, so they outlive organic ones.
+  keepSponsoredMs: 30 * 86_400_000,
+  newSightingGapMs: 30 * 60_000,
 };
 
 export type PostMap = Record<string, CapturedPost>;
@@ -29,10 +32,17 @@ export function mergeCapture(posts: PostMap, inputs: CaptureInput[], now = Date.
         snapshots: [snap],
         firstSeenAt: input.observedAt,
         lastSeenAt: input.observedAt,
+        promoted: input.promoted,
+        advertiserFollowers: input.advertiserFollowers,
+        sightings: 1,
       };
       continue;
     }
     const post: CapturedPost = { ...prev, lastSeenAt: Math.max(prev.lastSeenAt, input.observedAt) };
+    if (input.observedAt - prev.lastSeenAt >= LIMITS.newSightingGapMs) post.sightings = (prev.sightings ?? 1) + 1;
+    // The label can be missing on one render and present on the next; once seen, it stays.
+    if (input.promoted) post.promoted = true;
+    if (input.advertiserFollowers != null) post.advertiserFollowers = input.advertiserFollowers;
     // Prefer richer values: text expands after "see more", ids appear once the permalink renders.
     if (input.text.length > post.text.length) post.text = input.text;
     if (!post.author && input.author) post.author = input.author;
@@ -65,9 +75,11 @@ function addSnapshot(list: Snapshot[], snap: Snapshot): Snapshot[] {
 }
 
 export function prune(posts: PostMap, now = Date.now()): PostMap {
-  const kept = Object.values(posts).filter((p) =>
-    p.commentedAt ? now - p.commentedAt < LIMITS.keepCommentedMs : now - p.lastSeenAt < LIMITS.keepUnseenMs,
-  );
+  const kept = Object.values(posts).filter((p) => {
+    if (p.commentedAt) return now - p.commentedAt < LIMITS.keepCommentedMs;
+    const keep = p.promoted && !p.dismissed ? LIMITS.keepSponsoredMs : LIMITS.keepUnseenMs;
+    return now - p.lastSeenAt < keep;
+  });
   kept.sort((a, b) => b.lastSeenAt - a.lastSeenAt);
   return Object.fromEntries(kept.slice(0, LIMITS.maxPosts).map((p) => [p.key, p]));
 }

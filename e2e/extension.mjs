@@ -12,13 +12,15 @@ const idAt = (ms) => (BigInt(ms) << 22n).toString();
 const now = Date.now();
 const fresh = idAt(now - 40 * 60_000);
 const rising = idAt(now - 3 * 3_600_000);
+const adId = idAt(now - 86_400_000);
+const organicId = idAt(now - 2 * 3_600_000);
 const fixture = (name, ids) => {
   let html = readFileSync(`test/fixtures/${name}`, 'utf8');
   for (const [k, v] of Object.entries(ids)) html = html.replaceAll(k, v);
   return html;
 };
 // Tall spacer so the IntersectionObserver has to see posts scroll into view.
-const page = `<!doctype html><html><body><div style="height:1500px">top</div>${fixture('classic-feed.html', { __ID1__: fresh })}<div style="height:1500px"></div>${fixture('sdui-feed.html', { __ID2__: rising })}<div style="height:1500px"></div></body></html>`;
+const page = `<!doctype html><html><body><div style="height:1500px">top</div>${fixture('classic-feed.html', { __ID1__: fresh })}<div style="height:1500px"></div>${fixture('sdui-feed.html', { __ID2__: rising })}<div style="height:1500px"></div>${fixture('sponsored-feed.html', { __AD1__: adId, __ORG__: organicId })}<div style="height:1500px"></div></body></html>`;
 
 const executablePath = existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined;
 const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'updraft-')), {
@@ -42,7 +44,7 @@ try {
 
   const feed = await ctx.newPage();
   await feed.goto('https://www.linkedin.com/feed/');
-  for (let y = 0; y <= 6000; y += 400) {
+  for (let y = 0; y <= 9000; y += 400) {
     await feed.mouse.wheel(0, 400);
     await feed.waitForTimeout(120);
   }
@@ -51,7 +53,11 @@ try {
   const stored = await worker.evaluate(async () => (await chrome.storage.local.get('posts')).posts ?? {});
   const keys = Object.keys(stored).sort();
   console.log('captured keys:', keys);
-  assert.deepEqual(keys, ['ck:expandedFeedType_MAIN_FEED_noid', fresh, rising].sort());
+  assert.deepEqual(keys, ['ck:expandedFeedType_MAIN_FEED_ad2', 'ck:expandedFeedType_MAIN_FEED_noid', adId, fresh, organicId, rising].sort());
+  assert.equal(stored[adId].promoted, true);
+  assert.equal(stored[organicId].promoted, false);
+  const { detectedName } = await worker.evaluate(() => chrome.storage.local.get('detectedName'));
+  assert.equal(detectedName, 'David Ashby');
   assert.equal(stored[fresh].snapshots[0].reactions, 1204);
   assert.equal(stored[rising].snapshots[0].comments, 230);
 
@@ -78,6 +84,26 @@ try {
   await panel.setViewportSize({ width: 380, height: 900 });
   await panel.click('button[data-tab="rising"]');
   await panel.screenshot({ path: 'e2e/sidepanel.png', fullPage: true });
+
+  // Sponsored tab: well funded on by default, so the 1,204-follower TinyCo ad is filtered out.
+  const cardAuthors = () => panel.$$eval('article.card .author', (els) => els.map((e) => e.textContent));
+  await panel.click('button[data-tab="sponsored"]');
+  await panel.waitForSelector('#filters:not([hidden])');
+  assert.deepEqual(await cardAuthors(), ['Northwind Cloud']);
+  assert.ok((await panel.textContent('article.card')).includes('Names you'));
+  await panel.uncheck('#f-funded');
+  await panel.waitForFunction(() => document.querySelectorAll('article.card').length === 2);
+  // Both reached us during the same scroll, so their order is first-seen timing; check membership.
+  assert.deepEqual((await cardAuthors()).sort(), ['Northwind Cloud', 'TinyCo']);
+  await panel.check('#f-names');
+  await panel.waitForFunction(() => document.querySelectorAll('article.card').length === 1);
+  assert.deepEqual(await cardAuthors(), ['Northwind Cloud']);
+  await panel.check('#f-funded');
+  await panel.screenshot({ path: 'e2e/sponsored.png', fullPage: true });
+  // The toggles survive reopening the panel.
+  await panel.reload();
+  await panel.click('button[data-tab="sponsored"]');
+  assert.equal(await panel.isChecked('#f-names'), true);
 
   console.log(`blocked non-fixture requests: ${blocked}`);
   console.log('E2E OK');

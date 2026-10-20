@@ -27,7 +27,27 @@ export async function saveCommentLog(log: number[]): Promise<void> {
 export async function loadSettings(): Promise<Settings> {
   const { settings } = await chrome.storage.local.get('settings');
   const s = (settings ?? {}) as Partial<Settings>;
-  return { ...DEFAULT_SETTINGS, ...s, voice: { ...DEFAULT_SETTINGS.voice, ...s.voice } };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...s,
+    voice: { ...DEFAULT_SETTINGS.voice, ...s.voice },
+    funding: { ...DEFAULT_SETTINGS.funding, ...s.funding },
+  };
+}
+
+// The signed-in member's name as read from LinkedIn's nav; Settings.yourName overrides it.
+export async function loadDetectedName(): Promise<string> {
+  const { detectedName } = await chrome.storage.local.get('detectedName');
+  return typeof detectedName === 'string' ? detectedName : '';
+}
+
+export async function saveDetectedName(name: string): Promise<void> {
+  if ((await loadDetectedName()) !== name) await chrome.storage.local.set({ detectedName: name });
+}
+
+export async function effectiveName(): Promise<string> {
+  const settings = await loadSettings();
+  return settings.yourName.trim() || (await loadDetectedName());
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {

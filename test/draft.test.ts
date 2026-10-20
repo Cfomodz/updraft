@@ -33,6 +33,16 @@ describe('buildPrompt', () => {
   });
 });
 
+describe('buildPrompt for sponsored posts', () => {
+  it('explains name personalisation so drafts do not reply as if greeted', () => {
+    const p = buildPrompt({ ...post, author: 'Northwind', promoted: true }, settings, undefined, 'David Ashby');
+    expect(p).toMatch(/sponsored ad from Northwind/);
+    expect(p).toMatch(/automatic ad personalisation/);
+    expect(p).toMatch(/The person's name is David Ashby\./);
+    expect(buildPrompt(post, settings)).not.toMatch(/sponsored/);
+  });
+});
+
 describe('draftComments', () => {
   it('requires an API key without calling the API', async () => {
     const { calls, fetchImpl } = fakeApi(message('{}'));

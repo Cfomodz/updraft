@@ -1,16 +1,45 @@
-import { loadCommentLog, loadPosts, loadSettings } from '../background/storage';
+import { effectiveName, loadCommentLog, loadPosts, loadSettings } from '../background/storage';
 import { h } from '../shared/dom';
 import { momentum, rank, type Momentum } from '../shared/momentum';
+import { sponsoredView, type SponsoredFilters } from '../shared/sponsored';
 import { progress } from '../shared/streak';
 import type { CapturedPost, DraftResult, Request } from '../shared/types';
 
-type Tab = 'rising' | 'all' | 'commented';
+type Tab = 'rising' | 'all' | 'sponsored' | 'commented';
 type DraftState = { status: 'idle' } | { status: 'loading' } | { status: 'done'; result: DraftResult };
 
 let tab: Tab = 'rising';
 const drafts = new Map<string, DraftState>();
 const angles = new Map<string, string>();
 const list = document.getElementById('list')!;
+const filtersBar = document.getElementById('filters')!;
+const fundedBox = document.getElementById('f-funded') as HTMLInputElement;
+const namesBox = document.getElementById('f-names') as HTMLInputElement;
+
+// Remember the sponsored toggles per browser; storage can be unavailable, so never depend on it.
+const FILTER_KEY = 'updraft.sponsoredFilters';
+function loadFilters(): SponsoredFilters {
+  try {
+    const f = JSON.parse(localStorage.getItem(FILTER_KEY) ?? '{}');
+    return { wellFundedOnly: f.wellFundedOnly ?? true, namesMeOnly: f.namesMeOnly ?? false };
+  } catch {
+    return { wellFundedOnly: true, namesMeOnly: false };
+  }
+}
+let filters = loadFilters();
+fundedBox.checked = filters.wellFundedOnly;
+namesBox.checked = filters.namesMeOnly;
+for (const box of [fundedBox, namesBox]) {
+  box.addEventListener('change', () => {
+    filters = { wellFundedOnly: fundedBox.checked, namesMeOnly: namesBox.checked };
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify(filters));
+    } catch {
+      // Not persisted; the toggles still apply for this session.
+    }
+    render();
+  });
+}
 
 function send(msg: Request): Promise<any> {
   return chrome.runtime.sendMessage(msg);
@@ -28,7 +57,7 @@ function fmt(n: number): string {
 }
 
 async function render(): Promise<void> {
-  const [posts, log, settings] = await Promise.all([loadPosts(), loadCommentLog(), loadSettings()]);
+  const [posts, log, settings, yourName] = await Promise.all([loadPosts(), loadCommentLog(), loadSettings(), effectiveName()]);
   const p = progress(log, settings.weeklyGoal);
   const progressEl = document.getElementById('progress')!;
   progressEl.replaceChildren(
@@ -39,8 +68,15 @@ async function render(): Promise<void> {
 
   const all = Object.values(posts);
   const now = Date.now();
-  let rows: Array<{ post: CapturedPost; m: Momentum | null }>;
-  if (tab === 'rising') {
+  let rows: Array<{ post: CapturedPost; m: Momentum | null; namesYou?: boolean; wellFunded?: boolean }>;
+  filtersBar.hidden = tab !== 'sponsored';
+  if (tab === 'sponsored') {
+    const sponsored = sponsoredView(all, filters, settings.funding, yourName);
+    document.getElementById('f-count')!.textContent = `${sponsored.length} shown`;
+    namesBox.disabled = !yourName;
+    namesBox.parentElement!.title = yourName ? `Copy that mentions "${yourName}"` : 'Set your name in Settings, or open LinkedIn once so it can be detected';
+    rows = sponsored.map((r) => ({ ...r, m: momentum(r.post, now) }));
+  } else if (tab === 'rising') {
     rows = rank(all.filter((x) => !x.commentedAt), now).slice(0, 40);
   } else if (tab === 'commented') {
     rows = all.filter((x) => x.commentedAt).sort((a, b) => b.commentedAt! - a.commentedAt!).map((post) => ({ post, m: momentum(post, now) }));
@@ -53,16 +89,20 @@ async function render(): Promise<void> {
       h('p', { class: 'empty' },
         tab === 'commented'
           ? 'Posts you mark as commented show up here.'
+          : tab === 'sponsored'
+          ? 'No sponsored posts match. Scroll your feed to collect ads, or loosen the filters above.'
           : 'Nothing yet. Open your LinkedIn feed and scroll. Posts you scroll past are scored here as they gain engagement.'),
     );
     return;
   }
-  list.replaceChildren(...rows.map(({ post, m }) => card(post, m, now)));
+  list.replaceChildren(...rows.map(({ post, m, namesYou, wellFunded }) => card(post, m, now, { namesYou, wellFunded })));
 }
 
-function card(post: CapturedPost, m: Momentum | null, now: number): HTMLElement {
+function card(post: CapturedPost, m: Momentum | null, now: number, ad: { namesYou?: boolean; wellFunded?: boolean } = {}): HTMLElement {
   const latest = post.snapshots[post.snapshots.length - 1];
-  const age = post.postedAt != null ? ago(now - post.postedAt) + (post.postedAtSource === 'relative-text' ? '~' : '') : 'age unknown';
+  const age = post.postedAt != null
+    ? ago(now - post.postedAt) + (post.postedAtSource === 'relative-text' ? '~' : '')
+    : `seen ${ago(now - post.firstSeenAt)} ago`;
   const state = drafts.get(post.key) ?? { status: 'idle' };
 
   const draftArea = h('div', { class: 'drafts' });
@@ -90,7 +130,16 @@ function card(post: CapturedPost, m: Momentum | null, now: number): HTMLElement 
     h('div', { class: 'row' },
       h('span', { class: 'author' }, post.author || 'Unknown author'),
       h('span', { class: 'meta' }, age),
-      m && h('span', { class: `badge${m.hot ? ' hot' : ''}` }, m.hot ? `Hot · ${m.stage}` : m.stage),
+      post.promoted && h('span', { class: 'badge ad' }, 'Promoted'),
+      ad.namesYou && h('span', { class: 'badge hot' }, 'Names you'),
+      m && !post.promoted && h('span', { class: `badge${m.hot ? ' hot' : ''}` }, m.hot ? `Hot · ${m.stage}` : m.stage),
+    ),
+    post.promoted && h('div', { class: 'meta' },
+      [
+        post.advertiserFollowers != null ? `${fmt(post.advertiserFollowers)} followers` : null,
+        `reached you on ${post.sightings ?? 1} visit${(post.sightings ?? 1) === 1 ? '' : 's'}`,
+        ad.wellFunded === false ? 'below funding thresholds' : null,
+      ].filter(Boolean).join(' · '),
     ),
     post.authorHeadline && h('div', { class: 'meta' }, post.authorHeadline),
     post.text && h('div', { class: 'text' }, post.text),
@@ -107,7 +156,7 @@ function card(post: CapturedPost, m: Momentum | null, now: number): HTMLElement 
         post.commentedAt ? 'Unmark' : 'I commented'),
       !post.commentedAt && h('button', { class: 'btn', onclick: () => send({ type: 'dismiss', key: post.key }) }, 'Hide'),
     ),
-    state.status !== 'idle' || tab === 'rising' ? angle : null,
+    state.status !== 'idle' || tab === 'rising' || tab === 'sponsored' ? angle : null,
     draftArea,
   );
 }

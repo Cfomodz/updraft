@@ -49,16 +49,21 @@ export function extractPost(el: Element, now = Date.now()): CaptureInput | null 
   }
 
   const counts = engagementCounts(el);
+  const promoted = isPromoted(el);
+  const headline = firstText(el, ['.update-components-actor__description span[aria-hidden="true"]', '.update-components-actor__description']) ?? '';
   return {
     key: ref ? ref.id : fallbackKey(el, author, text),
     activityId: ref ? ref.id : null,
     url: ref ? postUrl(ref) : null,
     author: author ?? '',
-    authorHeadline: firstText(el, ['.update-components-actor__description span[aria-hidden="true"]', '.update-components-actor__description']) ?? '',
+    // On company posts and ads this slot holds "254,310 followers", which is not a headline.
+    authorHeadline: FOLLOWERS_RE.test(headline) ? '' : headline,
     text,
     postedAt,
     postedAtSource,
     ...counts,
+    promoted,
+    advertiserFollowers: promoted ? followerCount(el) : null,
     observedAt: now,
   };
 }
@@ -171,6 +176,36 @@ export function engagementCounts(el: Element): Counts {
     if (n != null) counts.reactions = n;
   }
   return counts;
+}
+
+// Ads carry a short "Promoted" (or "Sponsored", "Promoted by X") label where organic posts show
+// their age. Only short leaf text counts, so a post that merely talks about promotions does not.
+export function isPromoted(el: Element): boolean {
+  for (const node of Array.from(el.querySelectorAll('span, p, a, div'))) {
+    if (node.children.length > 1 || node.closest(COMMENT_SCOPE)) continue;
+    const t = clean(node.textContent);
+    if (t.length <= 60 && /^(Promoted|Sponsored)(\s+by\b.*)?$/i.test(t)) return true;
+  }
+  return false;
+}
+
+const FOLLOWERS_RE = /^(\d[\d.,\u00a0\u202f ]*[KkMm]?)\s+followers$/i;
+
+// "54,321 followers" under the advertiser's name. Short leaf text only, to skip post copy.
+export function followerCount(el: Element): number | null {
+  for (const node of Array.from(el.querySelectorAll('span, p, div'))) {
+    if (node.children.length > 1 || node.closest(COMMENT_SCOPE)) continue;
+    const m = FOLLOWERS_RE.exec(clean(node.textContent));
+    if (m) return parseCount(m[1]);
+  }
+  return null;
+}
+
+// The signed-in member's name, from the "Me" avatar in the global nav.
+export function viewerName(doc: Document): string | null {
+  const img = doc.querySelector<HTMLImageElement>('img.global-nav__me-photo[alt], .global-nav__me img[alt]');
+  const name = clean(img?.getAttribute('alt')).replace(/^Photo of\s+/i, '');
+  return name && name.length < 80 ? name : null;
 }
 
 const UNIT_MS: Record<string, number> = { s: 1_000, m: 60_000, h: 3_600_000, d: 86_400_000, w: 7 * 86_400_000, mo: 30 * 86_400_000, y: 365 * 86_400_000 };

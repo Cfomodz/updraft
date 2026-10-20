@@ -43,6 +43,23 @@
       </label>
     </section>
     <section>
+      <h2>Sponsored posts</h2>
+      <label>Your name as ads use it
+        <input name="yourName" autocomplete="off">
+      </label>
+      <p class="hint">Used to spot personalised ads that address you by name. Leave blank to use the name on your LinkedIn account (<span id="detected">not detected yet; open LinkedIn once</span>).</p>
+      <p class="hint">LinkedIn does not show ad budgets. A sponsored post counts as well funded when it meets any one of these:</p>
+      <label>Advertiser has at least this many followers
+        <input name="minFollowers" type="number" min="0">
+      </label>
+      <label>Ad has at least this much engagement (reactions + comments + reposts)
+        <input name="minEngagement" type="number" min="0">
+      </label>
+      <label>The same ad reached you on at least this many separate visits
+        <input name="minSightings" type="number" min="1">
+      </label>
+    </section>
+    <section>
       <h2>Consistency</h2>
       <label>Weekly comment goal
         <input name="weeklyGoal" type="number" min="1" max="100">

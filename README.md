@@ -15,6 +15,14 @@ that extension, and the design choices below are its own.
   Tune the numbers in `src/shared/momentum.ts`.
 - **Draft comment** – three drafts in different angles, written from your profile, writing samples
   and style rules (Settings). Optional "angle" box to steer. You copy and post yourself.
+- **Sponsored** – every promoted post that reached you and you have not commented on, newest
+  first (by when it first reached you), kept for 30 days. Two toggles:
+  - *Well funded* (on by default): LinkedIn does not show ad budgets, so an ad qualifies on any one
+    visible proxy – advertiser followers (≥ 10,000), engagement on the ad (≥ 100), or the same ad
+    reaching you on separate visits (≥ 3). Thresholds are in Settings.
+  - *Names me*: personalised ads whose copy uses your name ("David, …"). Matches your first or full
+    name as a whole word, so "Davidson" does not count. The name is read from LinkedIn's nav or set
+    in Settings. Drafts for ads are told the greeting is ad personalisation, not a personal message.
 - **Consistency** – mark posts as commented; the header tracks your weekly goal and streak.
 
 ## Design choices

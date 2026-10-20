@@ -8,7 +8,8 @@ const M = 60_000;
 function input(over: Partial<CaptureInput> = {}): CaptureInput {
   return {
     key: '1', activityId: '1', url: 'u', author: 'A', authorHeadline: '', text: 'short',
-    postedAt: T0 - 30 * M, postedAtSource: 'urn', reactions: 10, comments: 1, reposts: 0, observedAt: T0, ...over,
+    postedAt: T0 - 30 * M, postedAtSource: 'urn', reactions: 10, comments: 1, reposts: 0,
+    promoted: false, advertiserFollowers: null, observedAt: T0, ...over,
   };
 }
 
@@ -52,5 +53,27 @@ describe('mergeCapture', () => {
     const later = T0 + 4 * 86_400_000;
     const pruned = mergeCapture(s, [], later);
     expect(Object.keys(pruned)).toEqual(['mine']);
+  });
+
+  it('counts separate visits as sightings, not repeated renders in one visit', () => {
+    let s = mergeCapture({}, [input()], T0);
+    s = mergeCapture(s, [input({ observedAt: T0 + 5 * M })], T0 + 5 * M);
+    expect(s['1'].sightings).toBe(1);
+    s = mergeCapture(s, [input({ observedAt: T0 + 40 * M })], T0 + 40 * M);
+    s = mergeCapture(s, [input({ observedAt: T0 + 6 * 60 * M })], T0 + 6 * 60 * M);
+    expect(s['1'].sightings).toBe(3);
+  });
+
+  it('keeps the promoted flag and follower count once seen', () => {
+    let s = mergeCapture({}, [input({ promoted: true, advertiserFollowers: 5000 })], T0);
+    s = mergeCapture(s, [input({ promoted: false, advertiserFollowers: null, observedAt: T0 + 10 * M })], T0 + 10 * M);
+    expect(s['1'].promoted).toBe(true);
+    expect(s['1'].advertiserFollowers).toBe(5000);
+  });
+
+  it('keeps uncommented sponsored posts for weeks, organic ones for days', () => {
+    const s = mergeCapture({}, [input({ key: 'ad', promoted: true }), input({ key: 'organic' })], T0);
+    expect(Object.keys(mergeCapture(s, [], T0 + 10 * 86_400_000))).toEqual(['ad']);
+    expect(Object.keys(mergeCapture(s, [], T0 + 31 * 86_400_000))).toEqual([]);
   });
 });

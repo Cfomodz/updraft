@@ -1,7 +1,7 @@
 import { mergeCapture } from '../shared/store';
 import type { DraftResult, Request } from '../shared/types';
 import { draftComments } from './draft';
-import { loadPosts, loadSettings, updateCommentLog, updatePosts } from './storage';
+import { effectiveName, loadPosts, loadSettings, saveDetectedName, updateCommentLog, updatePosts } from './storage';
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
@@ -24,7 +24,7 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
     case 'draft': {
       const post = (await loadPosts())[msg.key];
       if (!post) return { ok: false, error: 'That post is no longer stored.' } satisfies DraftResult;
-      return draftComments(post, await loadSettings(), msg.angle);
+      return draftComments(post, await loadSettings(), msg.angle, undefined, await effectiveName());
     }
     case 'mark-commented': {
       const now = Date.now();
@@ -37,6 +37,11 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
       });
       if (msg.commented && previous == null) await updateCommentLog((log) => [...log, now]);
       if (!msg.commented && previous != null) await updateCommentLog((log) => log.filter((t) => t !== previous));
+      return { ok: true };
+    }
+    case 'viewer': {
+      if (sender.id !== chrome.runtime.id || !sender.url?.startsWith('https://www.linkedin.com/')) return { ok: false };
+      await saveDetectedName(msg.name.slice(0, 80));
       return { ok: true };
     }
     case 'dismiss': {

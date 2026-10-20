@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { engagementCounts, extractPost, findPosts, parseCount } from '../src/content/extract';
+import { engagementCounts, extractPost, findPosts, parseCount, viewerName } from '../src/content/extract';
 import { idAt, loadFixture } from './helpers';
 
 const NOW = Date.UTC(2026, 9, 19, 12);
@@ -60,5 +60,33 @@ describe('server-driven feed markup', () => {
 
   it('reports zero for counts that are not rendered', () => {
     expect(engagementCounts(posts[1]).comments).toBe(0);
+  });
+});
+
+describe('sponsored posts', () => {
+  const doc = loadFixture('sponsored-feed.html', { __AD1__: idAt(NOW - 86_400_000), __ORG__: idAt(NOW - 2 * 3_600_000) });
+  const [classicAd, sduiAd, organic] = findPosts(doc).map((el) => extractPost(el, NOW)!);
+
+  it('detects the Promoted label and advertiser followers in classic markup', () => {
+    expect(classicAd.promoted).toBe(true);
+    expect(classicAd.author).toBe('Northwind Cloud');
+    expect(classicAd.advertiserFollowers).toBe(254_310);
+    expect(classicAd.authorHeadline).toBe('');
+    expect(classicAd.reactions).toBe(312);
+    expect(classicAd.text).toMatch(/^David, your team/);
+  });
+
+  it('detects "Promoted by" in server-driven markup', () => {
+    expect(sduiAd.promoted).toBe(true);
+    expect(sduiAd.advertiserFollowers).toBe(1204);
+  });
+
+  it('does not flag organic posts that mention promotion or followers in their text', () => {
+    expect(organic.promoted).toBe(false);
+    expect(organic.advertiserFollowers).toBeNull();
+  });
+
+  it('reads the signed-in member name from the nav', () => {
+    expect(viewerName(doc)).toBe('David Ashby');
   });
 });

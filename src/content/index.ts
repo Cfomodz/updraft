@@ -1,5 +1,5 @@
 import type { CaptureInput, Request } from '../shared/types';
-import { extractPost, findPosts } from './extract';
+import { extractPost, findPosts, viewerName } from './extract';
 
 // Watches the feed and reports posts the user actually scrolled past. Read-only: this script never
 // clicks, types, or calls LinkedIn's APIs; it reads what LinkedIn already rendered for the user.
@@ -20,7 +20,16 @@ const visibility = new IntersectionObserver(
   { threshold: 0.5 },
 );
 
+let reportedViewer = false;
+
 function scan(): void {
+  if (!reportedViewer) {
+    const name = viewerName(document);
+    if (name) {
+      reportedViewer = true;
+      chrome.runtime.sendMessage({ type: 'viewer', name } satisfies Request).catch(() => (reportedViewer = false));
+    }
+  }
   if (!location.pathname.startsWith('/feed')) return;
   for (const el of findPosts(document)) {
     if (observed.has(el)) continue;
